@@ -1,0 +1,42 @@
+name: uc2-siem
+hosts:
+  - name: siem
+    base_box:
+      image: ubuntu-noble-x86_64
+      man_user: ubuntu
+    flavor: m1.large
+  - name: victim
+    base_box:
+      image: ubuntu-noble-x86_64
+      man_user: ubuntu
+    flavor: m1.small
+  - name: attacker
+    base_box:
+      image: ubuntu-noble-x86_64
+      man_user: ubuntu
+    flavor: m1.small
+routers:
+  - name: router
+    base_box:
+      image: debian-12-x86_64
+      man_user: debian
+    flavor: standard.small
+networks:
+  - name: lab-switch
+    cidr: 192.168.20.0/24
+    accessible_by_user: False
+net_mappings:
+  - host: siem
+    network: lab-switch
+    ip: 192.168.20.10
+  - host: victim
+    network: lab-switch
+    ip: 192.168.20.20
+  - host: attacker
+    network: lab-switch
+    ip: 192.168.20.30
+router_mappings:
+  - router: router
+    network: lab-switch
+    ip: 192.168.20.1
+groups: []

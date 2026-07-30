@@ -1,0 +1,23 @@
+---
+# Die Sandbox generiert ein Inventar, dessen Hostnamen den Namen
+# aus der topology.yml entsprechen (siem, victim, attacker).
+# Reihenfolge ist bewusst: erst der SIEM-Host, damit der Manager
+# erreichbar ist, wenn sich der Agent auf dem victim enrollt.
+
+- name: SIEM-Host aufsetzen
+  hosts: siem
+  become: true
+  roles:
+    - siem-host
+
+- name: Verwundbares Zielsystem aufsetzen
+  hosts: victim
+  become: true
+  roles:
+    - victim-host
+
+- name: Angreifer-Host aufsetzen
+  hosts: attacker
+  become: true
+  roles:
+    - attacker-host

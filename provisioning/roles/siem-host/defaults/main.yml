@@ -1,0 +1,6 @@
+---
+# Wird aus group_vars/all.yml überschrieben. Hier nur als Fallback,
+# damit die Rolle auch isoliert testbar bleibt.
+siem_stack: wazuh
+wazuh_version: "4.14"
+elastic_version: "8.15.0"

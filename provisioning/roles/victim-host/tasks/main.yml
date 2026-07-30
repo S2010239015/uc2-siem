@@ -1,0 +1,77 @@
+---
+# --------------------------------------------------------------------
+# Das victim ist die überwachte Maschine. Es trägt den Agent des
+# jeweils aktiven SIEM und stellt die Angriffsfläche für die drei
+# Szenarien bereit.
+# --------------------------------------------------------------------
+
+- name: Paketquellen aktualisieren
+  apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Basis-Pakete für die Szenarien
+  apt:
+    name:
+      - openssh-server
+      - auditd
+      - sudo
+      - curl
+    state: present
+
+# --- Angriffsfläche für Szenario 1 (Baseline: Brute-Force) -----------
+# Passwort-Login bewusst erlaubt, ein Konto mit schwachem Passwort.
+# Das ist die kontrollierte Schwäche, kein Konfigurationsdrift.
+- name: SSH-Passwort-Login aktivieren
+  copy:
+    dest: /etc/ssh/sshd_config.d/50-lab.conf
+    content: |
+      PasswordAuthentication yes
+      PermitRootLogin no
+    mode: "0644"
+  notify: restart ssh
+
+- name: Testkonto mit schwachem Passwort anlegen
+  user:
+    name: sysops
+    password: "{{ 'Sommer2025' | password_hash('sha512') }}"
+    groups: sudo
+    shell: /bin/bash
+    append: true
+
+# --- Agent-Enrollment, abhängig vom aktiven Stack -------------------
+- name: Wazuh-Agent installieren und am Manager registrieren
+  when: siem_stack == "wazuh"
+  block:
+    - name: Wazuh-GPG-Key importieren
+      apt_key:
+        url: https://packages.wazuh.com/key/GPG-KEY-WAZUH
+        state: present
+
+    - name: Wazuh-Agent-Repository eintragen
+      apt_repository:
+        repo: "deb https://packages.wazuh.com/{{ wazuh_version }}/apt/ stable main"
+        filename: wazuh
+        state: present
+
+    - name: Wazuh-Agent mit Manager-IP installieren
+      apt:
+        name: wazuh-agent
+        state: present
+        update_cache: true
+      environment:
+        WAZUH_MANAGER: "{{ siem_ip }}"
+        WAZUH_AGENT_NAME: victim
+
+    - name: Wazuh-Agent starten
+      service:
+        name: wazuh-agent
+        state: started
+        enabled: true
+
+- name: Elastic Agent noch nicht implementiert
+  debug:
+    msg: >
+      Elastic-Ingestion für das victim folgt zusammen mit dem
+      Elastic-Zweig der siem-host-Rolle.
+  when: siem_stack == "elastic"

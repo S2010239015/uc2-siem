@@ -1,0 +1,48 @@
+---
+# --------------------------------------------------------------------
+# Der attacker führt die drei Szenarien gegen das victim aus.
+# Die Skripte liegen unter /opt/scenarios und werden manuell oder
+# gescriptet in der definierten Reihenfolge gestartet. Jedes Skript
+# erzeugt eine Teilmenge der 11 Ground-Truth-Events.
+# --------------------------------------------------------------------
+
+- name: Paketquellen aktualisieren
+  apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Angriffswerkzeuge installieren
+  apt:
+    name:
+      - nmap
+      - hydra
+      - sshpass
+      - netcat-openbsd
+    state: present
+
+- name: Szenario-Verzeichnis anlegen
+  file:
+    path: /opt/scenarios
+    state: directory
+    mode: "0755"
+
+- name: Szenario-Skripte ausbringen
+  copy:
+    src: "scenarios/{{ item }}"
+    dest: "/opt/scenarios/{{ item }}"
+    mode: "0755"
+  loop:
+    - scenario1_baseline.sh
+    - scenario2_lotl.sh
+    - scenario3_lateral.sh
+
+- name: Wortliste für Brute-Force ausbringen
+  copy:
+    dest: /opt/scenarios/passwords.txt
+    content: |
+      123456
+      password
+      admin
+      Sommer2025
+      root
+    mode: "0644"
