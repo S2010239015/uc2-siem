@@ -17,6 +17,7 @@
       - auditd
       - sudo
       - curl
+      - gnupg
     state: present
 
 # --- Angriffsfläche für Szenario 1 (Baseline: Brute-Force) -----------
@@ -43,16 +44,29 @@
 - name: Wazuh-Agent installieren und am Manager registrieren
   when: siem_stack == "wazuh"
   block:
-    - name: Wazuh-GPG-Key importieren
-      apt_key:
+    - name: Wazuh-GPG-Key herunterladen
+      get_url:
         url: https://packages.wazuh.com/key/GPG-KEY-WAZUH
-        state: present
+        dest: /root/GPG-KEY-WAZUH
+        mode: "0644"
+
+    - name: Key ins dedizierte Keyring dearmoren
+      command: >
+        gpg --batch --yes --dearmor
+        -o /usr/share/keyrings/wazuh.gpg /root/GPG-KEY-WAZUH
+      args:
+        creates: /usr/share/keyrings/wazuh.gpg
 
     - name: Wazuh-Agent-Repository eintragen
+      # Wichtig: Pfad ist woertlich 4.x, nicht die Versionsnummer.
+      # signed-by ist auf Ubuntu 24.04 Pflicht, sonst "not signed".
       apt_repository:
-        repo: "deb https://packages.wazuh.com/{{ wazuh_version }}/apt/ stable main"
+        repo: >-
+          deb [signed-by=/usr/share/keyrings/wazuh.gpg]
+          https://packages.wazuh.com/4.x/apt/ stable main
         filename: wazuh
         state: present
+        update_cache: false
 
     - name: Wazuh-Agent mit Manager-IP installieren
       apt:
@@ -63,11 +77,12 @@
         WAZUH_MANAGER: "{{ siem_ip }}"
         WAZUH_AGENT_NAME: victim
 
-    - name: Wazuh-Agent starten
-      service:
+    - name: Wazuh-Agent aktivieren und starten
+      systemd:
         name: wazuh-agent
         state: started
         enabled: true
+        daemon_reload: true
 
 - name: Elastic Agent noch nicht implementiert
   debug:
