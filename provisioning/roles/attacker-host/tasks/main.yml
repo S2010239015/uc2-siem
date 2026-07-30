@@ -1,23 +1,21 @@
 ---
-# --------------------------------------------------------------------
-# Der attacker führt die drei Szenarien gegen das victim aus.
-# Die Skripte liegen unter /opt/scenarios und werden manuell oder
-# gescriptet in der definierten Reihenfolge gestartet. Jedes Skript
-# erzeugt eine Teilmenge der 11 Ground-Truth-Events.
-# --------------------------------------------------------------------
+# Der attacker fuehrt die drei Szenarien gegen victim aus und erzeugt
+# das Hintergrund-Rauschen, damit das SIEM in Szenario 2 und 3 nicht
+# jede Aktivitaet als anomal wertet.
 
 - name: Paketquellen aktualisieren
   apt:
     update_cache: true
     cache_valid_time: 3600
 
-- name: Angriffswerkzeuge installieren
+- name: Angriffswerkzeuge und Clients installieren
   apt:
     name:
       - nmap
       - hydra
       - sshpass
       - netcat-openbsd
+      - default-mysql-client
     state: present
 
 - name: Szenario-Verzeichnis anlegen
@@ -26,7 +24,7 @@
     state: directory
     mode: "0755"
 
-- name: Szenario-Skripte ausbringen
+- name: Szenario-Skripte und Wortliste ablegen
   copy:
     src: "scenarios/{{ item }}"
     dest: "/opt/scenarios/{{ item }}"
@@ -35,14 +33,23 @@
     - scenario1_baseline.sh
     - scenario2_lotl.sh
     - scenario3_lateral.sh
+    - passwords.txt
 
-- name: Wortliste für Brute-Force ausbringen
+- name: Traffic-Rausch-Generator ablegen
   copy:
-    dest: /opt/scenarios/passwords.txt
-    content: |
-      123456
-      password
-      admin
-      Sommer2025
-      root
+    src: traffic-noise.sh
+    dest: /opt/scenarios/traffic-noise.sh
+    mode: "0755"
+
+- name: systemd-Unit fuer das Rauschen ablegen
+  copy:
+    src: traffic-noise.service
+    dest: /etc/systemd/system/traffic-noise.service
     mode: "0644"
+
+- name: Traffic-Rauschen aktivieren und starten
+  systemd:
+    name: traffic-noise
+    state: started
+    enabled: true
+    daemon_reload: true

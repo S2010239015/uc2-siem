@@ -1,28 +1,29 @@
 ---
-# --------------------------------------------------------------------
-# Das victim ist die überwachte Maschine. Es trägt den Agent des
-# jeweils aktiven SIEM und stellt die Angriffsfläche für die drei
-# Szenarien bereit.
-# --------------------------------------------------------------------
+# Das victim ist die ueberwachte Maschine: Web, DB, normale User und
+# die geplanten Schwaechen fuer die drei Szenarien. Es wird bewusst
+# KEIN SIEM-Agent installiert - der gehoert zum Pruefobjekt und wird
+# im Betrieb ueber /opt/siem/install-wazuh-agent.sh nachgezogen.
 
 - name: Paketquellen aktualisieren
   apt:
     update_cache: true
     cache_valid_time: 3600
 
-- name: Basis-Pakete für die Szenarien
+- name: Pakete fuer Web, DB und Monitoring-Grundlage
   apt:
     name:
       - openssh-server
       - auditd
       - sudo
       - curl
-      - gnupg
+      - apache2
+      - php
+      - libapache2-mod-php
+      - php-mysql
+      - mysql-server
     state: present
 
-# --- Angriffsfläche für Szenario 1 (Baseline: Brute-Force) -----------
-# Passwort-Login bewusst erlaubt, ein Konto mit schwachem Passwort.
-# Das ist die kontrollierte Schwäche, kein Konfigurationsdrift.
+# --- Angriffsflaeche Szenario 1: schwacher SSH-Zugang ----------------
 - name: SSH-Passwort-Login aktivieren
   copy:
     dest: /etc/ssh/sshd_config.d/50-lab.conf
@@ -32,61 +33,94 @@
     mode: "0644"
   notify: restart ssh
 
-- name: Testkonto mit schwachem Passwort anlegen
+- name: Schwaches Benutzerkonto anlegen (Szenario 1/2)
   user:
-    name: sysops
-    password: "{{ 'Sommer2025' | password_hash('sha512') }}"
+    name: "{{ weak_user }}"
+    password: "{{ weak_pass | password_hash('sha512') }}"
     groups: sudo
     shell: /bin/bash
     append: true
 
-# --- Agent-Enrollment, abhängig vom aktiven Stack -------------------
-- name: Wazuh-Agent installieren und am Manager registrieren
-  when: siem_stack == "wazuh"
-  block:
-    - name: Wazuh-GPG-Key herunterladen
-      get_url:
-        url: https://packages.wazuh.com/key/GPG-KEY-WAZUH
-        dest: /root/GPG-KEY-WAZUH
-        mode: "0644"
+- name: sudo ohne Passwort fuer den schwachen User (Fehlkonfiguration, Event 4)
+  copy:
+    dest: /etc/sudoers.d/50-sysops
+    content: "{{ weak_user }} ALL=(ALL) NOPASSWD: ALL\n"
+    mode: "0440"
+    validate: visudo -cf %s
 
-    - name: Key ins dedizierte Keyring dearmoren
-      command: >
-        gpg --batch --yes --dearmor
-        -o /usr/share/keyrings/wazuh.gpg /root/GPG-KEY-WAZUH
-      args:
-        creates: /usr/share/keyrings/wazuh.gpg
+- name: Anwendungs-Benutzer fuer den Webdienst
+  user:
+    name: webapp
+    shell: /bin/bash
+    create_home: true
 
-    - name: Wazuh-Agent-Repository eintragen
-      # Wichtig: Pfad ist woertlich 4.x, nicht die Versionsnummer.
-      # signed-by ist auf Ubuntu 24.04 Pflicht, sonst "not signed".
-      apt_repository:
-        repo: >-
-          deb [signed-by=/usr/share/keyrings/wazuh.gpg]
-          https://packages.wazuh.com/4.x/apt/ stable main
-        filename: wazuh
-        state: present
-        update_cache: false
+# --- Web + DB (Ziel fuer Szenario 3) ---------------------------------
+- name: Webanwendung ablegen
+  copy:
+    src: "{{ item }}"
+    dest: "/var/www/html/{{ item }}"
+    mode: "0644"
+  loop:
+    - index.php
+    - db.php
 
-    - name: Wazuh-Agent mit Manager-IP installieren
-      apt:
-        name: wazuh-agent
-        state: present
-        update_cache: true
-      environment:
-        WAZUH_MANAGER: "{{ siem_ip }}"
-        WAZUH_AGENT_NAME: victim
+- name: MySQL starten
+  service:
+    name: mysql
+    state: started
+    enabled: true
 
-    - name: Wazuh-Agent aktivieren und starten
-      systemd:
-        name: wazuh-agent
-        state: started
-        enabled: true
-        daemon_reload: true
+- name: Datenbank, Tabelle und Web-Benutzer anlegen
+  shell: |
+    mysql -e "CREATE DATABASE IF NOT EXISTS {{ db_name }};"
+    mysql {{ db_name }} -e "CREATE TABLE IF NOT EXISTS kunden (id INT PRIMARY KEY, name VARCHAR(60), iban VARCHAR(34));"
+    mysql {{ db_name }} -e "INSERT IGNORE INTO kunden VALUES (1,'Muster GmbH','AT611904300234573201'),(2,'Beispiel AG','AT022050302101023600'),(3,'Test KG','AT483200000012345864');"
+    mysql -e "CREATE USER IF NOT EXISTS '{{ db_user }}'@'localhost' IDENTIFIED BY '{{ db_pass }}';"
+    mysql -e "GRANT SELECT ON {{ db_name }}.* TO '{{ db_user }}'@'localhost';"
+    mysql -e "FLUSH PRIVILEGES;"
+  args:
+    executable: /bin/bash
 
-- name: Elastic Agent noch nicht implementiert
-  debug:
-    msg: >
-      Elastic-Ingestion für das victim folgt zusammen mit dem
-      Elastic-Zweig der siem-host-Rolle.
-  when: siem_stack == "elastic"
+# --- Credential-Spur fuer Szenario 3 (Event 8) -----------------------
+- name: DB-Zugangsdaten in der bash_history von webapp platzieren
+  copy:
+    dest: /home/webapp/.bash_history
+    content: |
+      cd /var/www/html
+      mysql -u {{ db_user }} -p{{ db_pass }} {{ db_name }} -e "select count(*) from kunden"
+      exit
+    owner: webapp
+    group: webapp
+    mode: "0600"
+
+# --- Schwaeche fuer Szenario 2 (Event 6): SUID-Bits ------------------
+- name: SUID-Bits auf find und vim setzen
+  file:
+    path: "{{ item }}"
+    mode: "u+s"
+  loop:
+    - /usr/bin/find
+    - /usr/bin/vim.basic
+
+# --- Auditd-Regeln fuer Szenario 2 (Event 7) -------------------------
+- name: Auditd-Regeln fuer sensible Dateien
+  copy:
+    dest: /etc/audit/rules.d/lab.rules
+    content: |
+      -w /etc/shadow -p r -k shadow_read
+      -w /home -p r -k home_read
+    mode: "0640"
+  notify: audit rules laden
+
+# --- Betriebs-Skript fuer den Wazuh-Agent ablegen (inaktiv) ----------
+- name: Verzeichnis fuer SIEM-Install-Skripte anlegen
+  file:
+    path: /opt/siem
+    state: directory
+    mode: "0755"
+
+- name: Wazuh-Agent-Install-Skript ablegen (inaktiv)
+  copy:
+    src: install-wazuh-agent.sh
+    dest: /opt/siem/install-wazuh-agent.sh
+    mode: "0755"

@@ -28,10 +28,10 @@ networks:
 net_mappings:
   - host: siem
     network: lab-switch
-    ip: 192.168.20.10
+    ip: 192.168.20.20
   - host: victim
     network: lab-switch
-    ip: 192.168.20.20
+    ip: 192.168.20.5
   - host: attacker
     network: lab-switch
     ip: 192.168.20.30

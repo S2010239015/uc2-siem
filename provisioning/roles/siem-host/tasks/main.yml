@@ -1,62 +1,16 @@
 ---
-# --------------------------------------------------------------------
-# Gemeinsame Voraussetzung für beide Stacks.
-# Wazuh-Indexer (OpenSearch) und Elasticsearch brechen ohne diesen
-# Wert beim Start ab. Muss vor der Installation gesetzt sein.
-# --------------------------------------------------------------------
-- name: vm.max_map_count persistent setzen
-  copy:
-    dest: /etc/sysctl.d/99-siem.conf
-    content: "vm.max_map_count=262144\n"
-    mode: "0644"
+# Der siem-Host bleibt neutral. Es wird nichts installiert und nichts
+# gestartet. Es werden nur die Install-Skripte fuer die SIEMs abgelegt,
+# damit sie im Betrieb per Hand ausgefuehrt werden koennen.
 
-- name: sysctl neu laden
-  command: sysctl --system
-  changed_when: false
-
-# --------------------------------------------------------------------
-# Zweig A: Wazuh All-in-One (Server, Indexer, Dashboard auf einem Host).
-# Der m1.large-Flavor (8 GB) trifft die offizielle All-in-One-Empfehlung.
-# --------------------------------------------------------------------
-- name: Wazuh-Installationsassistent herunterladen
-  get_url:
-    url: "https://packages.wazuh.com/{{ wazuh_version }}/wazuh-install.sh"
-    dest: /root/wazuh-install.sh
+- name: Verzeichnis fuer SIEM-Install-Skripte anlegen
+  file:
+    path: /opt/siem
+    state: directory
     mode: "0755"
-  when: siem_stack == "wazuh"
 
-- name: Wazuh All-in-One installieren
-  command: bash /root/wazuh-install.sh -a --ignore-check
-  args:
-    creates: /var/ossec
-  when: siem_stack == "wazuh"
-  # Hinweis: Läuft einige Minuten (Paket- und Feed-Download).
-  # Falls die Allokation in einen Timeout läuft, auf async/poll:0
-  # umstellen wie in der scanner-host-Rolle von UC1. Dann muss aber
-  # die Agent-Enrollment im victim auf einen Retry-Loop warten,
-  # bis der Manager auf Port 1514 erreichbar ist.
-
-- name: Zugangsdaten aus dem Installer sichern
-  command: >
-    tar -O -xvf /root/wazuh-install-files.tar
-    wazuh-install-files/wazuh-passwords.txt
-  register: wazuh_passwords
-  changed_when: false
-  failed_when: false
-  when: siem_stack == "wazuh"
-
-# --------------------------------------------------------------------
-# Zweig B: Elastic Stack (Elasticsearch + Kibana, self-managed).
-# Auf 8 GB total ist das die enge Konfiguration. ES-Heap muss manuell
-# gedrosselt werden, sonst OOM-Kills mitten in der Detection-Ausführung.
-# Diese Rolle ist bewusst noch ein Stub - Inhalt kommt nach dem
-# Tag-6-Checkpoint, wenn der Wazuh-Durchlauf sitzt.
-# --------------------------------------------------------------------
-- name: Elastic-Zweig noch nicht implementiert
-  debug:
-    msg: >
-      siem_stack ist auf elastic gesetzt, aber die Rolle ist noch ein
-      Stub. Erst Wazuh-Durchlauf abschließen (Tag-6-Checkpoint), dann
-      diesen Zweig füllen. Geplant: ES-Heap auf 1-2 GB via jvm.options,
-      Kibana getrennt starten, Elastic Agent als Ingestion.
-  when: siem_stack == "elastic"
+- name: Wazuh-Manager-Install-Skript ablegen (inaktiv)
+  copy:
+    src: install-wazuh-manager.sh
+    dest: /opt/siem/install-wazuh-manager.sh
+    mode: "0755"

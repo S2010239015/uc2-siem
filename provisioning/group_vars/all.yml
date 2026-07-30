@@ -1,18 +1,13 @@
 ---
-# Zentrale Umschaltung zwischen den beiden SIEMs.
-# Beide laufen nacheinander auf derselben Allokation.
-# Für den ersten Durchlauf (Tag-6-Checkpoint) steht der Wert auf "wazuh".
-# Für den zweiten Durchlauf auf "elastic" umstellen, committen, pushen,
-# Sandbox-Definition neu importieren, neu provisionieren.
-siem_stack: wazuh          # wazuh | elastic
-
-# Feste Netz-Adressen aus der topology.yml.
-# Der Agent auf dem victim und die Skripte auf dem attacker
-# beziehen sich auf diese Werte.
-siem_ip: 192.168.20.10
-victim_ip: 192.168.20.20
+# Feste Netz-Adressen aus der topology.yml. Die Umgebung ist neutral,
+# das SIEM wird erst im Betrieb installiert (siehe siem/-Skripte).
+siem_ip: 192.168.20.20
+victim_ip: 192.168.20.5
 attacker_ip: 192.168.20.30
 
-# Versionen zentral gepinnt, damit die Umgebung reproduzierbar bleibt.
-wazuh_version: "4.14"
-elastic_version: "8.15.0"
+# Schwache Zugangsdaten der Laborumgebung. Bewusst trivial.
+weak_user: sysops
+weak_pass: Sommer2025
+db_user: webapp
+db_pass: WebApp123
+db_name: firma

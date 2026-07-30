@@ -1,22 +1,21 @@
 ---
-# Die Sandbox generiert ein Inventar, dessen Hostnamen den Namen
-# aus der topology.yml entsprechen (siem, victim, attacker).
-# Reihenfolge ist bewusst: erst der SIEM-Host, damit der Manager
-# erreichbar ist, wenn sich der Agent auf dem victim enrollt.
+# Provisioniert ausschliesslich die neutrale Umgebung. Kein SIEM.
+# Das SIEM wird nach der Allokation manuell installiert, ueber die
+# unter /opt/siem/ abgelegten Skripte.
 
-- name: SIEM-Host aufsetzen
+- name: SIEM-Host vorbereiten (nur Install-Skripte ablegen, nichts starten)
   hosts: siem
   become: true
   roles:
     - siem-host
 
-- name: Verwundbares Zielsystem aufsetzen
+- name: Verwundbares Zielsystem aufsetzen (Web, DB, Schwaechen)
   hosts: victim
   become: true
   roles:
     - victim-host
 
-- name: Angreifer-Host aufsetzen
+- name: Angreifer-Host aufsetzen (Werkzeuge, Rauschen, Szenarien)
   hosts: attacker
   become: true
   roles:

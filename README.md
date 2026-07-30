@@ -1,56 +1,72 @@
-# UC2 - SIEM-Vergleich (Wazuh vs. Elastic)
+# UC2 -- SIEM-Vergleich (Wazuh vs. Elastic)
 
-Sandbox-Definition für Use Case 2 der Masterarbeit. Drei Hosts in einem
-gemeinsamen Netz, zwei SIEMs im Vergleich, drei aufsteigende Szenarien.
+Sandbox-Definition fuer Use Case 2. Die Definition beschreibt eine
+**neutrale Umgebung** -- das SIEM ist nicht Teil der Sandbox, sondern
+wird nach der Allokation im Betrieb installiert. So bleibt die Umgebung
+tool-unabhaengig und reproduzierbar.
 
 ## Topologie
 
-Ein einziges Netz `lab-switch` (192.168.20.0/24), analog zu UC1. Das
-gemeinsame Netz vermeidet den Default-Route-Konflikt aus der frühen
-UC1-Phase.
+Ein Netz `lab-switch` (192.168.20.0/24), analog zu UC1.
 
-| Host     | IP             | Flavor       | Rolle        |
-|----------|----------------|--------------|--------------|
-| siem     | 192.168.20.10  | m1.large     | siem-host    |
-| victim   | 192.168.20.20  | m1.small     | victim-host  |
-| attacker | 192.168.20.30  | m1.small     | attacker-host|
-| router   | 192.168.20.1   | standard.small | -          |
+| Host     | IP             | Flavor         | Inhalt                       |
+|----------|----------------|----------------|------------------------------|
+| siem     | 192.168.20.20  | m1.large       | leerer Host + Install-Skripte |
+| victim   | 192.168.20.5   | m1.small       | Web, DB, geplante Schwaechen  |
+| attacker | 192.168.20.30  | m1.small       | Werkzeuge, Rauschen, Szenarien |
+| router   | 192.168.20.1   | standard.small | Gateway                      |
 
-## Kapazitätsentscheidung
+## Was das Provisioning macht
 
-`m1.large` (8 GB / 80 GB / 4 vCPU) ist die Obergrenze für den SIEM-Host
-unter der aktuellen Auslastung der OpenStack-VM. Die drei Instanzen
-belegen zusammen 12 GB RAM und passen in die verfügbaren ~15 GB. Weil
-die SIEMs nacheinander laufen, ist nie mehr als ein 8-GB-Host aktiv.
+Ausschliesslich die neutrale Umgebung:
 
-8 GB trifft die offizielle Wazuh-All-in-One-Empfehlung exakt. Für den
-Elastic Stack ist es die enge Konfiguration am unteren Rand. Das ist
-bewusst so und wird in Kapitel 7 als Einschränkung dokumentiert.
+- **victim**: Apache + PHP + MySQL (DB `firma`), schwacher User `sysops`,
+  NOPASSWD-sudo, SUID auf find/vim, auditd-Regeln, DB-Zugangsdaten als
+  auffindbare Spur. Kein SIEM-Agent.
+- **attacker**: nmap, hydra, sshpass, mysql-client, die drei
+  Szenario-Skripte unter `/opt/scenarios/` und ein Traffic-Generator
+  (`traffic-noise.service`), der Normal-Traffic gegen victim erzeugt.
+- **siem**: leerer Host. Nur die Install-Skripte werden unter
+  `/opt/siem/` abgelegt, aber nicht ausgefuehrt.
 
-## Umschaltung zwischen den SIEMs
+## SIEM im Betrieb installieren
 
-Gesteuert über `siem_stack` in `provisioning/group_vars/all.yml`:
+Nach der Allokation, ueber die Management-SSH-Config:
 
-1. `siem_stack: wazuh` - erster Durchlauf (Tag-6-Checkpoint).
-2. Nach Abschluss: Wert auf `elastic` ändern, committen, pushen.
-3. Sandbox-Definition neu importieren (Revision `main`), neu
-   provisionieren.
+Auf siem (Manager, Indexer, Dashboard, plus Swap und sysctl):
+```
+sudo /opt/siem/install-wazuh-manager.sh
+```
 
-Die Sandbox friert den Repo-Stand beim Import ein. Änderungen greifen
-erst nach erneutem Import, nicht durch bloßes Neu-Allokieren.
+Danach auf victim (Agent, zeigt auf den Manager):
+```
+sudo /opt/siem/install-wazuh-agent.sh 192.168.20.20
+```
 
-## Szenarien
+Kontrolle auf siem:
+```
+sudo /var/ossec/bin/agent_control -l
+```
 
-- `scenario1_baseline.sh` - lauter Port-Scan und SSH-Brute-Force,
-  funktionsfähig, dient als Kalibrierung.
-- `scenario2_lotl.sh` - Living-off-the-Land, Gerüst.
-- `scenario3_lateral.sh` - Lateral Movement, Gerüst.
+Fuer den Elastic-Lauf: neutrale Umgebung frisch allokieren und die
+Elastic-Skripte ausfuehren (folgen nach dem Wazuh-Durchlauf). Weil jeder
+Lauf auf einem frischen Host startet, gibt es keine Restzustaende
+zwischen den beiden SIEMs.
 
-Die konkreten Schritte in Szenario 2 und 3 werden zusammen mit der
-Zuordnung der 11 Ground-Truth-Events festgelegt.
+## Szenarien ausfuehren
 
-## Offen vor dem ersten Durchlauf
+Vom attacker, in Reihenfolge:
+```
+/opt/scenarios/scenario1_baseline.sh
+/opt/scenarios/scenario2_lotl.sh
+/opt/scenarios/scenario3_lateral.sh
+```
 
-- Elastic-Zweig der siem-host-Rolle (nach dem Wazuh-Durchlauf).
-- 11 Ground-Truth-Events auf die Szenario-Skripte verteilen.
-- Metriken pro Event in die Auswertung übernehmen.
+Die 11 Ground-Truth-Events und die Metriken stehen in
+`docs/ground-truth-events.md`.
+
+## Offen
+
+- Erkennungskriterium pro Event (Wazuh-Regel-ID / Alert-Level) nach dem
+  ersten Wazuh-Durchlauf festlegen.
+- Elastic-Install-Skripte.

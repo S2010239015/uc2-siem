@@ -1,0 +1,10 @@
+[Unit]
+Description=UC2 Hintergrund-Traffic gegen victim
+After=network-online.target
+
+[Service]
+ExecStart=/opt/scenarios/traffic-noise.sh
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
