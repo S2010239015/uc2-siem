@@ -76,7 +76,7 @@
     mysql {{ db_name }} -e "CREATE TABLE IF NOT EXISTS kunden (id INT PRIMARY KEY, name VARCHAR(60), iban VARCHAR(34));"
     mysql {{ db_name }} -e "INSERT IGNORE INTO kunden VALUES (1,'Muster GmbH','AT611904300234573201'),(2,'Beispiel AG','AT022050302101023600'),(3,'Test KG','AT483200000012345864');"
     mysql -e "CREATE USER IF NOT EXISTS '{{ db_user }}'@'localhost' IDENTIFIED BY '{{ db_pass }}';"
-    mysql -e "GRANT SELECT ON {{ db_name }}.* TO '{{ db_user }}'@'localhost';"
+    mysql -e "GRANT SELECT, LOCK TABLES ON {{ db_name }}.* TO '{{ db_user }}'@'localhost'; GRANT PROCESS ON *.* TO '{{ db_user }}'@'localhost';"
     mysql -e "FLUSH PRIVILEGES;"
   args:
     executable: /bin/bash
