@@ -1,9 +1,9 @@
 # UC2 -- SIEM-Vergleich (Wazuh vs. Elastic)
 
 Sandbox-Definition fuer Use Case 2. Die Definition beschreibt eine
-**neutrale Umgebung** -- das SIEM ist nicht Teil der Sandbox, sondern
+neutrale Umgebung -- das SIEM ist nicht Teil der Sandbox, sondern
 wird nach der Allokation im Betrieb installiert. So bleibt die Umgebung
-tool-unabhaengig und reproduzierbar.
+tool-unabhängig und reproduzierbar.
 
 ## Topologie
 
@@ -31,7 +31,7 @@ Ausschliesslich die neutrale Umgebung:
 
 ## SIEM im Betrieb installieren
 
-Nach der Allokation, ueber die Management-SSH-Config:
+Nach der Allokation, über die Management-SSH-Config:
 
 Auf siem (Manager, Indexer, Dashboard, plus Swap und sysctl):
 ```
@@ -48,9 +48,9 @@ Kontrolle auf siem:
 sudo /var/ossec/bin/agent_control -l
 ```
 
-Fuer den Elastic-Lauf: neutrale Umgebung frisch allokieren und die
-Elastic-Skripte ausfuehren (folgen nach dem Wazuh-Durchlauf). Weil jeder
-Lauf auf einem frischen Host startet, gibt es keine Restzustaende
+Für den Elastic-Lauf: neutrale Umgebung frisch allokieren und die
+Elastic-Skripte ausführen (folgen nach dem Wazuh-Durchlauf). Weil jeder
+Lauf auf einem frischen Host startet, gibt es keine Restzustände
 zwischen den beiden SIEMs.
 
 ## Szenarien ausfuehren
@@ -65,8 +65,3 @@ Vom attacker, in Reihenfolge:
 Die 11 Ground-Truth-Events und die Metriken stehen in
 `docs/ground-truth-events.md`.
 
-## Offen
-
-- Erkennungskriterium pro Event (Wazuh-Regel-ID / Alert-Level) nach dem
-  ersten Wazuh-Durchlauf festlegen.
-- Elastic-Install-Skripte.
